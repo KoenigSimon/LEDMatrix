@@ -20,8 +20,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
   }
   else
   {
-    StatusLed[0] =  CRGB::Purple;
-    FastLED.show();
+    errLEDTimer = millis() + 50;
   }
 
   Serial.print("Deserialisation State: ");

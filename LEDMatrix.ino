@@ -32,14 +32,17 @@ WiFiClient espClient;
 PubSubClient client(espClient);
 unsigned long connectionTimer = 0;
 
+unsigned long errLEDTimer = 0;
+
 float brightnessFactor = 1;
 
 CRGB StatusLed[1];
 
 void setup() {
-  // put your setup code here, to run once:
   //turn off leds
-  Serial.begin(115200);
+  Serial.begin(500000);
+  Serial.setRxBufferSize(8192);
+  
   pinMode(MOSFET, OUTPUT);
   pinMode(BUTTON, INPUT_PULLUP);
   digitalWrite(MOSFET, LOW);
@@ -61,48 +64,13 @@ void setup() {
   digitalWrite(MOSFET, HIGH);
 }
 
-void prof1()
-{
-  MirrorMatrix(left1, 8);
-  fillPanel(2, result);
-
-  MirrorMatrix(left2, 8);
-  fillPanel(1, result);
-
-  MirrorMatrix(left3, 8);
-  fillPanel(0, result);
-  
-
-  //MirrorMatrix(left1, 8);
-  fillPanel(3, left1);
-
-  //MirrorMatrix(left2, 8);
-  fillPanel(4, left2);
-
-  //MirrorMatrix(left3, 8);
-  fillPanel(5, left3);
-}
-
-void showProf()
-{
-  switch(currentprof)
-  {
-    case 0:
-      prof1();
-      break;  
-    default:
-      currentprof = 0;
-      showProf();
-      break;
-  }
-}
-
 void loop() {
   if(!digitalRead(BUTTON)){
     while(!digitalRead(BUTTON));
     currentprof++;
   }  
 
+  //read data from wifi
   if (millis() > connectionTimer + 500)
   {
     connectionTimer = millis();
@@ -112,7 +80,32 @@ void loop() {
     client.loop();
   }
 
-  //showProf();
+  //read data from serial  
+  if(Serial.available())
+  {
+    DeserializationError err = deserializeJson(doc, Serial);
+
+    if (err == DeserializationError::Ok) 
+    {
+      ReadData();
+    } 
+    else 
+    {     
+      errLEDTimer = millis() + 50;
+      Serial.flush();
+    }
+  }
+
+  //on error show led
+  if(errLEDTimer > millis())
+  {
+    StatusLed[0] =  CRGB::Purple;
+      FastLED.show();
+  } else {
+    StatusLed[0] =  CRGB::Black;
+      FastLED.show();
+  }
+  
 
   if (newDataReady)
   {
