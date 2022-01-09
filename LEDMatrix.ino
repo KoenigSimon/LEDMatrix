@@ -36,11 +36,13 @@ unsigned long errLEDTimer = 0;
 
 float brightnessFactor = 1;
 
+unsigned long lastDecodeTime;
+unsigned long lastFetchTime;
 CRGB StatusLed[1];
 
 void setup() {
   //turn off leds
-  Serial.begin(500000);
+  Serial.begin(1500000);
   Serial.setRxBufferSize(8192);
   
   pinMode(MOSFET, OUTPUT);
@@ -83,17 +85,22 @@ void loop() {
   //read data from serial  
   if(Serial.available())
   {
+    lastFetchTime = micros();
     DeserializationError err = deserializeJson(doc, Serial);
 
     if (err == DeserializationError::Ok) 
     {
+      lastFetchTime = micros() - lastFetchTime;
       ReadData();
+
+      writeTelemetry();
     } 
     else 
     {     
       errLEDTimer = millis() + 50;
       Serial.flush();
     }
+    
   }
 
   //on error show led
@@ -111,13 +118,24 @@ void loop() {
   {
     newDataReady = false;
     ReadData();
+
+    writeTelemetry();
   }
   
   FastLED.show();
 }
 
+void writeTelemetry()
+{
+  client.publish("dev/protoHead/decodeTime", String(lastDecodeTime).c_str());
+  client.publish("dev/protoHead/FetchTime", String(lastFetchTime).c_str());
+}
+
 void ReadData()
 {
+  //start measuering time data
+  lastDecodeTime = micros();
+  
   if (doc.containsKey("brightnessFactor"))
   {
     brightnessFactor = doc["brightnessFactor"] | 1.0;
@@ -131,7 +149,11 @@ void ReadData()
     //write current panel
     for(int i = 0; i < 64; i++)
     {
-      input[i] = strtol(panel["dots"][i], 0, 16);
+      String temp = panel["dots"][i];
+      if(temp.startsWith("0"))
+        input[i] = strtol(panel["dots"][i], 0, 16);
+      else 
+        input[i] = strtol("0x000000", 0, 16);
     }    
     
     if (panel.containsKey("rot"))
@@ -165,5 +187,7 @@ void ReadData()
     }
     
   }
+
+  lastDecodeTime = micros() - lastDecodeTime;
 
 }
